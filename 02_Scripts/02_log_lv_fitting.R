@@ -150,9 +150,8 @@ plot(log_CH23fit)
 # Values close to 1.0 indicate that the chains have successfully converged to the same distribution
 
 # Pipeline -------------------------------------------------------------------
-indv_gr
 
-stan_ccfunct <- function (df, temp_col, replica_col, strain_col, interest_col, time_series, time_alternative){
+stan_ccfunct <- function (df, temp_col, replica_col, strain_col, interest_col, time_series, time_alternative, niterations, nchains){
   
   # assigning objects to specific values in the data.frame 
   
@@ -228,43 +227,20 @@ stan_ccfunct <- function (df, temp_col, replica_col, strain_col, interest_col, t
     )
   }
   
-  return(stan_input)
+  stan_output <- list()
+  for (r in seq_along(stan_input)){
+    stan_output[[r]] <- stan(model_code = loglv, # here it is the stan function i created earlier
+                        data = stan_input[[r]], # stan_input 
+                        save_dso = FALSE, 
+                        iter = niterations,  # iterations
+                        chains = nchains,   # n. chains 
+                        init = stan_initial_standarized ) # this function is available in the "Functions" script
+    
+  }
+  return(stan_output)
 }
 
 pruebafunc <- stan_ccfunct(df = indv_gro, temp_col = "temp", replica_col = "ord_replica", strain_col = "Cepa", interest_col = "OD_real", 
-                           time_series = seq(0, 18, by = 2), time_alternative = c(0, 10, 12, 14, 16, 18))
-pruebafunc[1]
+                           time_series = seq(0, 18, by = 2), time_alternative = c(0, 10, 12, 14, 16, 18), niterations = 3000, nchains = 4)
+pruebafunc
 
-seq_along(pruebafunc)
-
-
-
-especies <- unique(indv_gro[, 1])
-temperatura <- sort(unique(indv_gro[,"temp"]), decreasing = F)
-repeticion <- unique(indv_gro[, "ord_replica"])
-
-vector_xrepe <- list() 
-p <- 1
-
-for (m in 1:length(especies)) {
-  for (o in 1:length(repeticion)) {
-    
-    df_complete <- subset(indv_gro, 
-                      Cepa == especies[m] & 
-                        ord_replica == repeticion[o] & 
-                        temp %in% c(30, 37, 42))
-    
-    if (nrow(df_complete) > 0){
-      df_filtered <- df_complete %>% 
-        arrange(temp) %>%
-        pull(OD_real)
-      
-      df_matrix <- matrix(df_filtered, ncol = 3)
-      colnames(df_matrix) <- c("30", "37", "42")
-      vector_xrepe[[p]] = df_matrix
-      
-      names(vector_xrepe)[p] <- paste0(especies[m], "_rep", repeticion[o])
-      p <- p + 1
-    }
-  }
-}
