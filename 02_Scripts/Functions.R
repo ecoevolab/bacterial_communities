@@ -159,3 +159,81 @@ stan_ccfunct <- function (df, temp_col, replica_col, strain_col, interest_col, t
 
 
 # Reconstruction methods -------------------------------------------------------
+
+# Community isolation 
+
+community_isolation <- function(rcommunities, sample, sample_col, rcommunities_col, df, arrangev, interest_column, dfwvals, composition_df){
+  
+  # create an empty list   
+  community_list <- list()
+  k <- 1
+  
+  # subset the commuinity values based on the day and community name 
+  
+  for (i in 1:length(rcommunities)){
+    for (x in 1:length(sample)){
+      
+      community_list[[k]] <- subset(df, df[[sample_col]] %in% c(0, sample[x])  & df[[rcommunities_col]] == rcommunities[i]) %>% 
+        arrange(.data[[arrangev]]) %>% 
+        pull(.data[[interest_column]]) %>% 
+        as.character()
+      
+      k <- k + 1
+    }
+  }
+  
+  # create an empty list for the abundances 
+  abundances_tables <- list()
+  
+  # Based on the column names, select the values from the data.frame with sample measures  
+  
+  for (id in seq_along(community_list)) {
+    abundances_tables[[id]] <- dfwvals %>%
+      dplyr::select(1 | all_of(community_list[[id]])) %>%
+      column_to_rownames(var = "row.names") # Asumming the first column belongs to the row names 
+    
+  }
+  
+  abnds_filtered <- list()
+  
+  for (g in seq_len(ncol(composition_df))) {
+    
+    # select the community name / for arranging the list 
+    comm_name <- colnames(composition_df)[g]
+    
+    # select the specific bacterial id for the selected community 
+    spp <- composition_df[, g]
+    spln <- 1:length(spp)
+    
+    
+    # indexes [to select in the list of data.frames]
+    idx <- (2*g - 1):(2*g)
+    
+    for (j in seq_along(idx)) {
+      
+      k <- idx[j]
+      
+      abnds_filtered[[paste0(comm_name, "_", sample[j])]] <- abundances_tables[[k]] %>% 
+        filter(row.names(abundances_tables[[k]]) %in% spp)
+      
+      
+    }
+  }
+  
+  return(abnds_filtered)
+  
+}
+
+# Sparcc for multiple commuinities  - used for testing 
+sparcc_inf <- function (list_wcoms, pval){
+  
+  infernt <- list()
+  mt <- "sparcc"
+  for (i in seq_along(list_wcoms)){
+    infernt[[i]] <- net_inference(taxa_abs = t(list_wcoms[[i]]), method = mt, p = pval)
+    
+  }
+  
+  return(infernt)
+}
+ 
