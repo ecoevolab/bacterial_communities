@@ -160,23 +160,90 @@ plot(log_CH23fit)
 # Pipeline -------------------------------------------------------------------
 indv_gr
 
-stan_ccfunct <- function (df){
+stan_ccfunct <- function (df, temp_col, replica_col, strain_col, interest_col, time_series, time_alternative){
   
-  spps <- list(unique(df[]))
+  # assigning objects to specific values in the data.frame 
   
-  for (i in 1:N){
-    rep1_sp <- subset(df, spp_col == spp[i] &
-                        ((reppscol == reppsnum & tempcol == tempnum))) %>%
-      arrange(temp) %>%
-      pull(OD_real)
-    
-    
+  spps <- unique(df[[strain_col]]) 
+  ntemps <- sort(unique(df[[temp_col]]), decreasing = FALSE)
+  
+  ntemps_numeric <- as.numeric(ntemps) 
+  ntemps_character <- as.character(ntemps)
+  nreplica <- unique(df[[replica_col]])
+  
+  vector_freplica <- list() 
+  p <- 1
+  
+  for (m in 1:length(spps)) {
+    for (o in 1:length(nreplica)) {
+      
+      df_complete <- df[df[[strain_col]] == spps[m] & 
+                          df[[replica_col]] == nreplica[o] & 
+                          df[[temp_col]] %in% ntemps_numeric, ]
+      
+      if (nrow(df_complete) > 0){
+        
+          df_filtered <- df_complete %>% 
+          arrange(.data[[temp_col]]) %>%
+          pull(.data[[interest_col]])
+        
+          df_matrix <- matrix(df_filtered, ncol = length(ntemps_numeric))
+          colnames(df_matrix) <- ntemps_character
+          
+        vector_freplica[[p]] = df_matrix
+        
+        names(vector_freplica)[p] <- paste0(spps[m], "_rep", nreplica[o])
+        p <- p + 1
+      }
+    }
   }
   
   
+  # Generating initial values and every data.frame for the stan input 
+  init_v <- list()
+  m_data <- list()
+  stan_input <- list()
+  ts_vector <- list()
   
+  for (q in seq_along(vector_freplica)) {
+    
+    # extract the first row of every data.frame to get the initial values for stan
+    init_v <- as.numeric(vector_freplica[[q]][1, ])
+    
+    # Extract the rest of the data 
+    m_data[[q]] <- vector_freplica[[q]][-1, ]
+    
+    # if - to identify specific variations in the data.frame for the time_series 
+    
+    if (nrow(vector_freplica[[q]]) == length(time_alternative)) {
+      
+      ts_vector <- time_alternative[-1] 
+      
+    } else {
+    
+      ts_vector <- time_series[-1]
+      
+    }
+    
+    # That way it doesn't matter if we have another time_series alternative 
+    
+    # Create the stan input 
+    stan_input[[names(vector_freplica)[q]]] <- list(
+      N = nrow(m_data[[q]]), 
+      ts = ts_vector, 
+      y0 = init_v,
+      y  = m_data[[q]]
+    )
+  }
+  
+  return(stan_input)
 }
 
+pruebafunc <- stan_ccfunct(df = indv_gro, temp_col = "temp", replica_col = "ord_replica", strain_col = "Cepa", interest_col = "OD_real", 
+                           time_series = seq(0, 18, by = 2), time_alternative = c(0, 10, 12, 14, 16, 18))
+pruebafunc
+
+seq_along(pruebafunc)
 
 indv_gro <- read_tsv("01_RawData/modified_individual_strain_growth_curves_ord_replica - individual_strains_growth_curves_filtered.tsv")
 indv_gro <- as.data.frame(indv_gro)
@@ -210,4 +277,3 @@ for (m in 1:length(especies)) {
     }
   }
 }
-
