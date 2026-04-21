@@ -117,23 +117,13 @@ log_CH23_df <- list(
   
 )
 
-# Specifying initial values for the variables of interest 
-# because we want logical growth and capacity values 
-CH23_init <- function(){
-  list(
-    r = 0.3,
-    k = 0.8, 
-    z0 = as.array(c(0.001, 0.001, 0.001)),
-    sigma = 0.1
-  )
-}
 
 log_CH23fit <- stan(model_code = loglv, 
                     data = log_CH23_df, 
                     save_dso = FALSE, 
                     iter = 2000,  # iterations
                     chains = 4,   # n. chains 
-                    init = CH23_init) # the initial values i want stan to start from 
+                    init = stan_initial_standarized ) # the initial values i want stan to start from 
 print(log_CH23fit)
 plot(log_CH23fit)
 
@@ -241,7 +231,7 @@ stan_ccfunct <- function (df, temp_col, replica_col, strain_col, interest_col, t
 
 pruebafunc <- stan_ccfunct(df = indv_gro, temp_col = "temp", replica_col = "ord_replica", strain_col = "Cepa", interest_col = "OD_real", 
                            time_series = seq(0, 18, by = 2), time_alternative = c(0, 10, 12, 14, 16, 18))
-pruebafunc
+pruebafunc[1]
 
 seq_along(pruebafunc)
 
