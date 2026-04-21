@@ -20,56 +20,6 @@ indv_gro <- as.data.frame(indv_gro)
 
 # Stan function --------------------------------------------------
 
-loglv <- '
-functions {
-  vector lvfnc(real t,           // time
-               vector z,         // state (OD in this particular case)
-               real r,           // r
-               real k) {         // k
-               
-    vector[3] dzdt;
-    for (j in 1:3) {
-      dzdt[j] = r * z[j] * (1 - z[j] / k);
-    }
-    return dzdt;
-  }
-}
-
-data {
-  int<lower=1> N;            
-  real ts[N];                // time series [without the first time measure]
-  vector<lower=0>[3] y0;     // observed initial state 
-  real<lower=0> y[N, 3];     // population measures
-}
-
-parameters {
-  real<lower=0> r;
-  real<lower=0> k;
-  vector<lower=0>[3] z0;     // initial state (estimation)
-  real<lower=0> sigma;
-}
-
-transformed parameters {
-  // using vectors instead of real[]
-  vector[3] z[N] = ode_rk45(lvfnc, z0, 0.0, ts, r, k);
-}
-
-model {
-  // Priors
-  r ~ normal(0.3, 0.05);
-  k ~ normal(0.8, 0.05);
-  sigma ~ lognormal(0, 0.05); # low error 
-
-  // Prior for the initial state based on the values
-  z0 ~ normal(y0, 0.1);
-  
-  // Likelihood
-  for (j in 1:3) {
-    y[, j] ~ normal(z[, j], sigma); 
-  }
-}
-'
-
 # Corrections 
 # Theta, x_i & x_r are no needed 
 # vectors instead of real[] objects 
@@ -119,7 +69,6 @@ log_CH23_df <- list(
   
 )
 
-
 log_CH23fit <- stan(model_code = loglv, 
                     data = log_CH23_df, 
                     save_dso = FALSE, 
@@ -127,7 +76,6 @@ log_CH23fit <- stan(model_code = loglv,
                     chains = 4,   # n. chains 
                     init = stan_initial_standarized ) # the initial values i want stan to start from 
 print(log_CH23fit)
-plot(log_CH23fit)
 
 # CH23 - 30° results stan function --------------------------------------------
 # r = 0.30 
@@ -151,96 +99,7 @@ plot(log_CH23fit)
 
 # Pipeline -------------------------------------------------------------------
 
-stan_ccfunct <- function (df, temp_col, replica_col, strain_col, interest_col, time_series, time_alternative, niterations, nchains){
-  
-  # assigning objects to specific values in the data.frame 
-  
-  spps <- unique(df[[strain_col]]) 
-  ntemps <- sort(unique(df[[temp_col]]), decreasing = FALSE)
-  
-  ntemps_numeric <- as.numeric(ntemps) 
-  ntemps_character <- as.character(ntemps)
-  nreplica <- unique(df[[replica_col]])
-  
-  vector_freplica <- list() 
-  p <- 1
-  
-  for (m in 1:length(spps)) {
-    for (o in 1:length(nreplica)) {
-      
-      df_complete <- df[df[[strain_col]] == spps[m] & 
-                          df[[replica_col]] == nreplica[o] & 
-                          df[[temp_col]] %in% ntemps_numeric, ]
-      
-      if (nrow(df_complete) > 0){
-        
-          df_filtered <- df_complete %>% 
-          arrange(.data[[temp_col]]) %>%
-          pull(.data[[interest_col]])
-        
-          df_matrix <- matrix(df_filtered, ncol = length(ntemps_numeric))
-          colnames(df_matrix) <- ntemps_character
-          
-        vector_freplica[[p]] = df_matrix
-        
-        names(vector_freplica)[p] <- paste0(spps[m], "_rep", nreplica[o])
-        p <- p + 1
-      }
-    }
-  }
-  
-  
-  # Generating initial values and every data.frame for the stan input 
-  init_v <- list()
-  m_data <- list()
-  stan_input <- list()
-  ts_vector <- list()
-  
-  for (q in seq_along(vector_freplica)) {
-    
-    # extract the first row of every data.frame to get the initial values for stan
-    init_v <- as.numeric(vector_freplica[[q]][1, ])
-    
-    # Extract the rest of the data 
-    m_data[[q]] <- vector_freplica[[q]][-1, ]
-    
-    # if - to identify specific variations in the data.frame for the time_series 
-    
-    if (nrow(vector_freplica[[q]]) == length(time_alternative)) {
-      
-      ts_vector <- time_alternative[-1] 
-      
-    } else {
-    
-      ts_vector <- time_series[-1]
-      
-    }
-    
-    # That way it doesn't matter if we have another time_series alternative 
-    
-    # Create the stan input 
-    stan_input[[names(vector_freplica)[q]]] <- list(
-      N = nrow(m_data[[q]]), 
-      ts = ts_vector, 
-      y0 = init_v,
-      y  = m_data[[q]]
-    )
-  }
-  
-  stan_output <- list()
-  for (r in seq_along(stan_input)){
-    stan_output[[r]] <- stan(model_code = loglv, # here it is the stan function i created earlier
-                        data = stan_input[[r]], # stan_input 
-                        save_dso = FALSE, 
-                        iter = niterations,  # iterations
-                        chains = nchains,   # n. chains 
-                        init = stan_initial_standarized ) # this function is available in the "Functions" script
-    
-  }
-  return(stan_output)
-}
-
 pruebafunc <- stan_ccfunct(df = indv_gro, temp_col = "temp", replica_col = "ord_replica", strain_col = "Cepa", interest_col = "OD_real", 
                            time_series = seq(0, 18, by = 2), time_alternative = c(0, 10, 12, 14, 16, 18), niterations = 3000, nchains = 4)
-pruebafunc
+rk_valslist <- saveRDS(pruebafunc, file = "03_Output/rk_valslist")
 
