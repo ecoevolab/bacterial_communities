@@ -13,8 +13,10 @@ library(dplyr)
 # Data.frame --------------------------------------------------------
 indv_gr <- read_tsv("01_RawData/individual_strains_growth_curves_filtered.tsv")
 indv_gr <- as.data.frame(indv_gr)
-View(indv_gr)
 
+# data.frame with aditional column for replica
+indv_gro <- read_tsv("01_RawData/modified_individual_strain_growth_curves_ord_replica - individual_strains_growth_curves_filtered.tsv")
+indv_gro <- as.data.frame(indv_gro)
 
 # Stan function --------------------------------------------------
 
@@ -235,8 +237,7 @@ pruebafunc[1]
 
 seq_along(pruebafunc)
 
-indv_gro <- read_tsv("01_RawData/modified_individual_strain_growth_curves_ord_replica - individual_strains_growth_curves_filtered.tsv")
-indv_gro <- as.data.frame(indv_gro)
+
 
 especies <- unique(indv_gro[, 1])
 temperatura <- sort(unique(indv_gro[,"temp"]), decreasing = F)
