@@ -13,9 +13,10 @@ functions {
                vector z,         // state (OD in this particular case)
                real r,           // r
                real k) {         // k
-               
-    vector[3] dzdt;
-    for (j in 1:3) {
+    
+    int S = num_elements(z);
+    vector[S] dzdt;
+    for (j in 1:S) {
       dzdt[j] = r * z[j] * (1 - z[j] / k);
     }
     return dzdt;
@@ -23,22 +24,23 @@ functions {
 }
 
 data {
-  int<lower=1> N;            
-  real ts[N];                // time series [without the first time measure]
-  vector<lower=0>[3] y0;     // observed initial state 
-  real<lower=0> y[N, 3];     // population measures
+  int<lower=1> N; 
+  int<lower=1> S;
+  array[N] real ts;           // time series [without the first time measure]
+  vector<lower=0>[S] y0;      // observed initial state 
+  array[N, S] real<lower=0> y;      // population measures
 }
 
 parameters {
   real<lower=0> r;
   real<lower=0> k;
-  vector<lower=0>[3] z0;     // initial state (estimation)
+  vector<lower=0>[S] z0;     // initial state (estimation)
   real<lower=0> sigma;
 }
 
 transformed parameters {
   // using vectors instead of real[]
-  vector[3] z[N] = ode_rk45(lvfnc, z0, 0.0, ts, r, k);
+  array[N] vector[S] z = ode_rk45(lvfnc, z0, 0.0, ts, r, k);
 }
 
 model {
@@ -51,24 +53,24 @@ model {
   z0 ~ normal(y0, 0.1);
   
   // Likelihood
-  for (j in 1:3) {
+  for (j in 1:S) {
     y[, j] ~ normal(z[, j], sigma); 
   }
 }
 '
 
 # For standarized initial values 
-stan_initial_standarized <- function(){
+stan_initial_standarized <- function(S_val){
   list(
     r = 0.3,
     k = 0.8, 
-    z0 = as.array(c(0.001, 0.001, 0.001)),
+    z0 = as.array(rep(0.001, times = S_val)),
     sigma = 0.1
   )
 }
 
 # Stan function with the Log LV model 
-stan_ccfunct <- function (df, temp_col, replica_col, strain_col, interest_col, time_series, time_alternative, niterations, nchains){
+stan_ccfunct <- function (df, temp_col, replica_col, strain_col, interest_col, time_series, time_alternative, niterations, nchains)
   
   # assigning objects to specific values in the data.frame 
   
