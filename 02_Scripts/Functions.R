@@ -70,7 +70,7 @@ stan_initial_standarized <- function(S_val){
 }
 
 # Stan function with the Log LV model 
-stan_ccfunct <- function (df, temp_col, replica_col, strain_col, interest_col, time_series, time_alternative, niterations, nchains)
+stan_ccfunct <- function (df, temp_col, replica_col, strain_col, sample_byh, interest_col, time_series, time_alternative, niterations, nchains){
   
   # assigning objects to specific values in the data.frame 
   
@@ -79,30 +79,31 @@ stan_ccfunct <- function (df, temp_col, replica_col, strain_col, interest_col, t
   
   ntemps_numeric <- as.numeric(ntemps) 
   ntemps_character <- as.character(ntemps)
-  nreplica <- unique(df[[replica_col]])
   
   vector_freplica <- list() 
   p <- 1
   
+  
   for (m in 1:length(spps)) {
-    for (o in 1:length(nreplica)) {
+    for (o in 1:length(ntemps_numeric)) {
       
-      df_complete <- df[df[[strain_col]] == spps[m] & 
-                          df[[replica_col]] == nreplica[o] & 
-                          df[[temp_col]] %in% ntemps_numeric, ]
+      df_complete <- df[df[[strain_col]] == spps[m] & df[[temp_col]] == ntemps_numeric[o], ]
+      
+      timepoints <- length(unique(df_complete[[sample_byh]]))
+      ntotalc <- nrow(df_complete) / timepoints
       
       if (nrow(df_complete) > 0){
         
         df_filtered <- df_complete %>% 
-          arrange(.data[[temp_col]]) %>%
+          arrange(.data[[replica_col]], .data[[sample_byh]]) %>%
           pull(.data[[interest_col]])
         
-        df_matrix <- matrix(df_filtered, ncol = length(ntemps_numeric))
-        colnames(df_matrix) <- ntemps_character
+        df_matrix <- matrix(df_filtered, ncol = ntotalc)
+        colnames(df_matrix) <- rep(ntemps_numeric[o], times = ntotalc)
         
         vector_freplica[[p]] = df_matrix
         
-        names(vector_freplica)[p] <- paste0(spps[m], "_rep", nreplica[o])
+        names(vector_freplica)[p] <- paste0(spps[m], "_T", ntemps_numeric[o])
         p <- p + 1
       }
     }
@@ -121,7 +122,7 @@ stan_ccfunct <- function (df, temp_col, replica_col, strain_col, interest_col, t
     init_v <- as.numeric(vector_freplica[[q]][1, ])
     
     # Extract the rest of the data 
-    m_data[[q]] <- vector_freplica[[q]][-1, ]
+    m_data[[q]] <- vector_freplica[[q]][-1, , drop = FALSE]
     
     # if - to identify specific variations in the data.frame for the time_series 
     
@@ -140,6 +141,7 @@ stan_ccfunct <- function (df, temp_col, replica_col, strain_col, interest_col, t
     # Create the stan input 
     stan_input[[names(vector_freplica)[q]]] <- list(
       N = nrow(m_data[[q]]), 
+      S = ncol(m_data[[q]]),
       ts = ts_vector, 
       y0 = init_v,
       y  = m_data[[q]]
@@ -147,13 +149,27 @@ stan_ccfunct <- function (df, temp_col, replica_col, strain_col, interest_col, t
   }
   
   stan_output <- list()
+  
   for (r in seq_along(stan_input)){
-    stan_output[[r]] <- stan(model_code = loglv, # here it is the stan function i created earlier
-                             data = stan_input[[r]], # stan_input 
-                             save_dso = FALSE, 
-                             iter = niterations,  # iterations
-                             chains = nchains,   # n. chains 
-                             init = stan_initial_standarized ) # this function is available in the "Functions" script
+    
+    current_S <- stan_input[[r]]$S
+    
+    init_fun <- function() {
+      list(
+        r = 0.3,
+        k = 0.8, 
+        z0 = as.array(rep(0.001, times = current_S)), # it depends on S's value 
+        sigma = 0.1
+      )
+    }
+    
+    stan_output[[names(stan_input)[r]]] <- stan(
+      model_code = loglv, # here it is the stan function i created earlier
+      data = stan_input[[r]], # stan_input 
+      save_dso = FALSE, 
+      iter = niterations,  # iterations
+      chains = nchains,   # n. chains 
+      init = init_fun) # this function is available in the "Functions" script
     
   }
   return(stan_output)
