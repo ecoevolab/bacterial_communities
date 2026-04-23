@@ -132,7 +132,7 @@ log_CH29_df_6t <- list(
   N = 5,
   S = ncol(OD_CH29_6t),
   ts = time6t_CH29[-1],
-  y0 = in_val,
+  y0 = in_val_6t,
   y = OD_CH29_6t[-1,]
 )
 
@@ -155,3 +155,5 @@ log_CH29_6fit <- stan(model_code = loglv,
                     init = init_fun29_6t ) # the initial values i want stan to start from 
 print(log_CH29_6fit)
 saveRDS(log_CH29_6fit, file = "03_Output/CH29_T42_6times")
+
+
